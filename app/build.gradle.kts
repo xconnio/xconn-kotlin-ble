@@ -36,6 +36,11 @@ android {
 }
 
 dependencies {
+    implementation("com.github.xconnio:xconn-kotlin:39b2ddb1b2") {
+        exclude(group = "io.xconn", module = "wampproto")
+    }
+
+    implementation("com.github.xconnio:wampproto-kotlin:main-SNAPSHOT")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

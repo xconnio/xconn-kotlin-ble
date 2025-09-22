@@ -4,6 +4,7 @@ import io.xconn.wampproto.SessionDetails
 import io.xconn.wampproto.messages.Message
 import io.xconn.wampproto.serializers.Serializer
 import io.xconn.xconn.IBaseSession
+import java.util.UUID
 
 interface Peer {
     suspend fun send(data: ByteArray)
@@ -46,3 +47,9 @@ class PeerBaseSession(
 
     override suspend fun close() = peer.close()
 }
+
+data class BleServiceConfig(
+    val serviceUuid: UUID,
+    val readerCharUuid: UUID,
+    val writerCharUuid: UUID,
+)

@@ -26,33 +26,37 @@ import java.util.UUID
 
 class BleManager(
     private val context: Context,
+    private val bleConfig: BleServiceConfig,
+    private val onRequestEnableBluetooth: (() -> Unit)? = null,
 ) {
-    private val bluetoothManager =
-        context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter = bluetoothManager.adapter
     private val bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
     private var bluetoothGatt: BluetoothGatt? = null
     private val peerDeferred = CompletableDeferred<BlePeer>()
 
-    companion object {
-        private val SERVICE_UUID: UUID = UUID.fromString("6bb39355-45d9-419e-a678-774a7fa9b51c")
-        private val READER_CHAR_UUID: UUID = UUID.fromString("4212049d-573e-48ae-9ffa-ddce066e36c8")
-        private val WRITER_CHAR_UUID: UUID = UUID.fromString("661119d9-9996-44f1-a19d-42abe4b47f4f")
-    }
-
     suspend fun awaitPeer(): BlePeer = peerDeferred.await()
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun startScan() {
-        if (!bluetoothAdapter.isEnabled) {
-            Toast.makeText(context, "Bluetooth is disabled", Toast.LENGTH_SHORT).show()
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_SCAN,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.w("BLE", "Missing BLUETOOTH_SCAN permission")
             return
         }
 
-        val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE_UUID)).build()
+        if (!bluetoothAdapter.isEnabled) {
+            onRequestEnableBluetooth?.invoke() ?: Toast
+                .makeText(context, "Bluetooth is disabled", Toast.LENGTH_SHORT)
+                .show()
+            return
+        }
 
-        val settings =
-            ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+        val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(bleConfig.serviceUuid)).build()
+
+        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
 
         bluetoothLeScanner.startScan(listOf(filter), settings, scanCallback)
         Toast.makeText(context, "Scanning for devices...", Toast.LENGTH_SHORT).show()
@@ -91,8 +95,7 @@ class BleManager(
 
             @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
             private fun connectToDevice(device: BluetoothDevice) {
-                bluetoothGatt =
-                    device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+                bluetoothGatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
                 Toast.makeText(context, "Connecting to ${device.name}", Toast.LENGTH_SHORT).show()
             }
 
@@ -119,9 +122,9 @@ class BleManager(
                     ) {
                         if (status != BluetoothGatt.GATT_SUCCESS) return
 
-                        val service = gatt.getService(SERVICE_UUID)
-                        val reader = service?.getCharacteristic(READER_CHAR_UUID)
-                        val writer = service?.getCharacteristic(WRITER_CHAR_UUID)
+                        val service = gatt.getService(bleConfig.serviceUuid)
+                        val reader = service?.getCharacteristic(bleConfig.readerCharUuid)
+                        val writer = service?.getCharacteristic(bleConfig.writerCharUuid)
 
                         if (reader != null && writer != null) {
                             gatt.setCharacteristicNotification(reader, true)
@@ -145,7 +148,9 @@ class BleManager(
                             val peer = BlePeer(gatt, writer, reader)
                             peerDeferred.complete(peer)
                         } else {
-                            peerDeferred.completeExceptionally(RuntimeException("Missing reader or writer characteristic"))
+                            peerDeferred.completeExceptionally(
+                                RuntimeException("Missing reader or writer characteristic"),
+                            )
                             Log.e("BLE_GATT", "Missing reader or writer characteristic")
                         }
                     }
@@ -172,8 +177,14 @@ class BleManager(
                 }
         }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun cleanup() {
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         bluetoothGatt?.close()
         bluetoothGatt = null
     }

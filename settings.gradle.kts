@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "XConn Kotlin BLE"
 include(":app")
+include(":xconnble")

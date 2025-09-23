@@ -4,7 +4,6 @@ import android.Manifest
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothStatusCodes
-import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresPermission
